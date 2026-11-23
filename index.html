@@ -15,44 +15,41 @@
 <div class="list" id="list"><button id="listclose">Close list</button><h2>All discoveries</h2><div id="listitems"></div></div>
 <script>
 (() => {
-  "use strict";
-  const stories = {
-    organica: {title:"Creative Leadership — Organica Club",category:"UX Kingdom · Cultural Head",desc:"Planning creative activities and bringing people together through hands-on experiences, including crochet, tote bag making and recipe activities.",details:"Role: Cultural Head · Focus: creative programming, workshop planning, coordination and community participation."},
-    gameui: {title:"Game UI Design Journey",category:"Game UI Isles · Design Exploration",desc:"An evolving exploration into game interfaces, player-facing systems, visual hierarchy and designing clear interactions.",details:"Role: UX/UI and Game UI Designer · Tools and specific projects can be added as your work develops."},
-    artclub: {title:"Community & Social Contribution",category:"Visual Woods · VIS Art Club",desc:"Participated in creative community activities, including diya painting and an old-age home visit, with a focus on thoughtful participation.",details:"Focus: creativity, empathy, community engagement and collaboration."},
-    fest: {title:"Annual Talent Search Fest",category:"Prototype Coast · Fine Arts Department",desc:"Supported fest activities and team coordination, working through event requirements and time-bound tasks.",details:"Role: Executive member · Focus: coordination, communication and deadline awareness."}
-  };
-  const map=document.getElementById("map"),world=document.getElementById("world"),panel=document.getElementById("panel");
-  if(!map||!world||!panel){console.error("Portfolio map markup missing");return;}
-  const count=document.getElementById("count");
-  let scale=0.35,x=0,y=0,dragging=false,sx=0,sy=0,ox=0,oy=0,active=null;
-  const discovered=new Set();
-  try{const saved=JSON.parse(localStorage.getItem("atlas-discovered")||"[]");if(Array.isArray(saved))saved.forEach(v=>{if(stories[v])discovered.add(v)});}catch(e){}
-  function saveDiscovery(){try{localStorage.setItem("atlas-discovered",JSON.stringify([...discovered]));}catch(e){}}
-  function clamp(){const w=2400*scale,h=1600*scale;x=Math.min(0,Math.max(map.clientWidth-w,x));y=Math.min(0,Math.max(map.clientHeight-h,y));if(w<map.clientWidth)x=(map.clientWidth-w)/2;if(h<map.clientHeight)y=(map.clientHeight-h)/2;}
-  function draw(){clamp();world.style.transform="translate3d("+x+"px,"+y+"px,0) scale("+scale+")";if(count)count.textContent=discovered.size+" / 4 discovered";}
-  function zoom(next,cx=map.clientWidth/2,cy=map.clientHeight/2){const min=Math.min(map.clientWidth/2400,map.clientHeight/1600),ns=Math.max(min,Math.min(1.05,next)),prev=scale;x=cx-(cx-x)/prev*ns;y=cy-(cy-y)/prev*ns;scale=ns;draw();}
-  function fly(px,py,z=0.58){scale=z;x=map.clientWidth/2-px*scale;y=map.clientHeight/2-py*scale;draw();}
-  function openStory(id){const s=stories[id];if(!s)return;active=id;document.getElementById("category").textContent=s.category;document.getElementById("ptitle").textContent=s.title;document.getElementById("pdesc").textContent=s.desc;document.getElementById("details").textContent=s.details;panel.classList.add("open");const b=document.querySelector('[data-id="'+id+'"]');if(b)fly(parseFloat(b.style.left)+30,parseFloat(b.style.top)+30,0.72);discovered.add(id);saveDiscovery();if(location.hash!=="#"+id)history.replaceState(null,"","#"+id);draw();}
-  function closeStory(){panel.classList.remove("open");active=null;if(location.hash)history.replaceState(null,"",location.pathname+location.search);}
-  function closeList(){const l=document.getElementById("list");if(l)l.classList.remove("open");}
-  document.querySelectorAll(".landmark").forEach(b=>b.addEventListener("click",()=>openStory(b.dataset.id)));
-  document.getElementById("close").addEventListener("click",closeStory);
-  document.getElementById("plus").addEventListener("click",()=>zoom(scale*1.2));
-  document.getElementById("minus").addEventListener("click",()=>zoom(scale/1.2));
-  document.getElementById("home").addEventListener("click",()=>{scale=Math.min(map.clientWidth/2400,map.clientHeight/1600);x=(map.clientWidth-2400*scale)/2;y=(map.clientHeight-1600*scale)/2;draw();});
-  document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{const pts={ux:[620,560],game:[1710,570],visual:[650,1290],coast:[1730,1290]},p=pts[b.dataset.go];if(p)fly(p[0],p[1],0.45);closeStory();}));
-  const list=document.getElementById("list"),items=document.getElementById("listitems");
-  document.getElementById("listbtn").addEventListener("click",()=>{items.innerHTML=Object.entries(stories).map(([id,s])=>'<article><h3>'+s.title+'</h3><p>'+s.desc+'</p><button type="button" data-open="'+id+'">Explore</button></article>').join("");list.classList.add("open");});
-  document.getElementById("listclose").addEventListener("click",closeList);
-  items.addEventListener("click",e=>{const b=e.target.closest("[data-open]");if(b){closeList();openStory(b.dataset.open);}});
-  map.addEventListener("click",e=>{if(!e.target.closest(".landmark")&&!e.target.closest(".panel"))closeStory();});
-  map.addEventListener("pointerdown",e=>{if(e.target.closest("button,.hud,.panel,.list"))return;dragging=true;sx=e.clientX;sy=e.clientY;ox=x;oy=y;try{map.setPointerCapture(e.pointerId);}catch(err){}});
-  map.addEventListener("pointermove",e=>{if(dragging){x=ox+e.clientX-sx;y=oy+e.clientY-sy;draw();}});
-  const stop=()=>dragging=false;map.addEventListener("pointerup",stop);map.addEventListener("pointercancel",stop);map.addEventListener("lostpointercapture",stop);
-  map.addEventListener("wheel",e=>{e.preventDefault();zoom(scale*(e.deltaY<0?1.12:0.89),e.clientX,e.clientY);},{passive:false});
-  window.addEventListener("keydown",e=>{if(e.key==="Escape"){closeStory();closeList();}if(e.key==="+"||e.key==="=")zoom(scale*1.15);if(e.key==="-")zoom(scale/1.15);if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)){e.preventDefault();x+=e.key==="ArrowLeft"?40:e.key==="ArrowRight"?-40:0;y+=e.key==="ArrowUp"?40:e.key==="ArrowDown"?-40:0;draw();}});
-  window.addEventListener("resize",draw);
-  if(location.hash&&stories[location.hash.slice(1)])openStory(location.hash.slice(1));else{scale=Math.min(map.clientWidth/2400,map.clientHeight/1600);x=(map.clientWidth-2400*scale)/2;y=(map.clientHeight-1600*scale)/2;draw();}
+"use strict";
+const stories={
+organica:{title:"Creative Leadership — Organica Club",category:"UX Kingdom · Cultural Head",desc:"Planning creative activities and bringing people together through hands-on experiences, including crochet, tote bag making and recipe activities.",details:"Role: Cultural Head · Focus: creative programming, workshop planning, coordination and community participation."},
+gameui:{title:"Game UI Design Journey",category:"Game UI Isles · Design Exploration",desc:"An evolving exploration into game interfaces, player-facing systems, visual hierarchy and designing clear interactions.",details:"Role: UX/UI and Game UI Designer · Tools and specific projects can be added as your work develops."},
+artclub:{title:"Community & Social Contribution",category:"Visual Woods · VIS Art Club",desc:"Participated in creative community activities, including diya painting and an old-age home visit, with a focus on thoughtful participation.",details:"Focus: creativity, empathy, community engagement and collaboration."},
+fest:{title:"Annual Talent Search Fest",category:"Prototype Coast · Fine Arts Department",desc:"Supported fest activities and team coordination, working through event requirements and time-bound tasks.",details:"Role: Executive member · Focus: coordination, communication and deadline awareness."}};
+const map=document.getElementById("map"),world=document.getElementById("world"),panel=document.getElementById("panel");
+if(!map||!world||!panel)return;
+const $=id=>document.getElementById(id), count=$("count"), list=$("list"), items=$("listitems");
+let scale=.45,x=0,y=0,drag=null;
+const discovered=new Set();
+function draw(){world.style.transform="translate("+x+"px,"+y+"px) scale("+scale+")";if(count)count.textContent=discovered.size+" / 4 discovered";}
+function focus(px,py,z=.62){scale=z;x=map.clientWidth/2-px*scale;y=map.clientHeight/2-py*scale;draw();}
+function openStory(id){const s=stories[id];if(!s)return; $("category").textContent=s.category;$("ptitle").textContent=s.title;$("pdesc").textContent=s.desc;$("details").textContent=s.details;panel.classList.add("open");discovered.add(id);if(count)count.textContent=discovered.size+" / 4 discovered";const marker=document.querySelector('[data-id="'+id+'"]');if(marker)focus(parseFloat(marker.style.left)+26,parseFloat(marker.style.top)+26,.68);}
+function closeStory(){panel.classList.remove("open");}
+function closeList(){list.classList.remove("open");}
+document.addEventListener("click",e=>{
+const landmark=e.target.closest(".landmark[data-id]");if(landmark){e.preventDefault();openStory(landmark.dataset.id);return;}
+if(e.target.closest("#close")){closeStory();return;}
+if(e.target.closest("#plus")){scale=Math.min(1,scale*1.18);focus(1200,800,scale);return;}
+if(e.target.closest("#minus")){scale=Math.max(.18,scale/1.18);draw();return;}
+if(e.target.closest("#home")){focus(620,560,.45);return;}
+if(e.target.closest("#listbtn")){items.innerHTML=Object.entries(stories).map(([id,s])=>'<article><h3>'+s.title+'</h3><p>'+s.desc+'</p><button type="button" data-open="'+id+'">Explore</button></article>').join("");list.classList.add("open");return;}
+if(e.target.closest("#listclose")){closeList();return;}
+const explore=e.target.closest("[data-open]");if(explore){closeList();openStory(explore.dataset.open);return;}
+const travel=e.target.closest("[data-go]");if(travel){const dest={ux:[620,560],game:[1710,570],visual:[650,1290],coast:[1730,1290]}[travel.dataset.go];if(dest)focus(dest[0],dest[1],.58);closeStory();return;}
+if(!e.target.closest(".panel"))closeStory();
+});
+let moved=false;
+map.addEventListener("pointerdown",e=>{if(e.target.closest("button,.hud,.panel,.list"))return;drag={px:e.clientX,py:e.clientY,x,y};moved=false;map.setPointerCapture?.(e.pointerId);});
+map.addEventListener("pointermove",e=>{if(!drag)return;x=drag.x+e.clientX-drag.px;y=drag.y+e.clientY-drag.py;moved=true;draw();});
+const release=()=>{drag=null;};map.addEventListener("pointerup",release);map.addEventListener("pointercancel",release);map.addEventListener("lostpointercapture",release);
+map.addEventListener("wheel",e=>{e.preventDefault();scale=Math.min(1,Math.max(.18,scale*(e.deltaY<0?1.12:.9)));draw();},{passive:false});
+window.addEventListener("keydown",e=>{if(e.key==="Escape"){closeStory();closeList();}});
+window.addEventListener("resize",draw);
+focus(620,560,.45);
 })();
 </script></body></html>
