@@ -1,0 +1,54 @@
+import React, {useEffect,useRef,useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {AnimatePresence,motion} from 'framer-motion';
+import {Compass,Plus,Minus,Home,BookOpen,Map as MapIcon,Move,X,ArrowUpRight,ChevronLeft,ChevronRight,Castle,Shield,Flag,Leaf,ScrollText,Sparkles,Flower2,Crystal,ExternalLink} from 'lucide-react';
+import {regions,projects,Project} from './data';
+import './style.css';
+const W=4000,H=3000;
+const icons:Record<string,any>={tower:Castle,castle:Castle,compass:Compass,book:BookOpen,shield:Shield,flag:Flag,leaf:Leaf,scroll:ScrollText,spark:Sparkles,crystal:Crystal,flower:Flower2,portal:Sparkles};
+function App(){
+ const viewport=useRef<HTMLDivElement>(null),mapRef=useRef<HTMLDivElement>(null),miniRef=useRef<HTMLDivElement>(null);
+ const [zoom,setZoom]=useState(.2),[pos,setPos]=useState({x:0,y:0}),[isDrag,setIsDrag]=useState(false),[selected,setSelected]=useState<Project|null>(null),[list,setList]=useState(false),[travel,setTravel]=useState(false),[miniHidden,setMiniHidden]=useState(false),[loading,setLoading]=useState(true),[seen,setSeen]=useState<string[]>([]);
+ const [size,setSize]=useState({w:innerWidth,h:innerHeight}), dragRef=useRef({x:0,y:0,ox:0,oy:0});
+ const minZoom=Math.min(size.w/W,size.h/H);
+ useEffect(()=>{const t=setTimeout(()=>setLoading(false),550);const resize=()=>setSize({w:innerWidth,h:innerHeight});window.addEventListener('resize',resize);setSeen(JSON.parse(localStorage.getItem('world-discovered')||'[]'));return()=>{clearTimeout(t);window.removeEventListener('resize',resize)}},[]);
+ const clamp=(s:number,x:number,y:number)=>({x:W*s<size.w?(size.w-W*s)/2:Math.max(size.w-W*s,Math.min(0,x)),y:H*s<size.h?(size.h-H*s)/2:Math.max(size.h-H*s,Math.min(0,y))});
+ const home=()=>{const s=minZoom;setZoom(s);setPos({x:(size.w-W*s)/2,y:(size.h-H*s)/2})};
+ useEffect(()=>{home()},[size.w,size.h]);
+ const camera=(s:number,x:number,y:number)=>{const p=clamp(s,x,y);setZoom(s);setPos(p)};
+ const zoomAt=(s:number,cx=size.w/2,cy=size.h/2)=>{const ns=Math.max(minZoom,Math.min(3,s)),mx=(cx-pos.x)/zoom,my=(cy-pos.y)/zoom;camera(ns,cx-mx*ns,cy-my*ns)};
+ const fly=(p:Project)=>{const s=Math.max(minZoom,Math.min(1,.75)),x=size.w/2-p.x*s,y=size.h/2-p.y*s;if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){camera(s,x,y)}else{mapRef.current?.animate([{transform:`translate3d(${pos.x}px,${pos.y}px,0) scale(${zoom})`},{transform:`translate3d(${x}px,${y}px,0) scale(${s})`}],{duration:600,easing:'ease-in-out',fill:'forwards'});camera(s,x,y)}};
+ const open=(p:Project)=>{setSelected(p);fly(p);const next=[...new Set([...seen,p.id])];setSeen(next);localStorage.setItem('world-discovered',JSON.stringify(next));location.hash=p.id};
+ const close=()=>{setSelected(null);history.replaceState(null,'',location.pathname)};
+ useEffect(()=>{const slug=location.hash.slice(1);const p=projects.find(p=>p.id===slug);if(p)open(p)},[]);
+ useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'){close();setTravel(false)}if(selected)return;const delta=50;if(e.key==='ArrowLeft')setPos(p=>clamp(zoom,p.x+delta,p.y));if(e.key==='ArrowRight')setPos(p=>clamp(zoom,p.x-delta,p.y));if(e.key==='ArrowUp')setPos(p=>clamp(zoom,p.x,p.y+delta));if(e.key==='ArrowDown')setPos(p=>clamp(zoom,p.x,p.y-delta));if(e.key==='+')zoomAt(zoom*1.15);if(e.key==='-')zoomAt(zoom/1.15)};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey)},[selected,zoom]);
+ const down=(e:React.PointerEvent)=>{if(e.button!==0)return;setIsDrag(true);dragRef.current={x:e.clientX,y:e.clientY,ox:pos.x,oy:pos.y};e.currentTarget.setPointerCapture(e.pointerId)};
+ const move=(e:React.PointerEvent)=>{if(!isDrag)return;setPos(clamp(zoom,dragRef.current.ox+e.clientX-dragRef.current.x,dragRef.current.oy+e.clientY-dragRef.current.y))};
+ const wheel=(e:React.WheelEvent)=>{e.preventDefault();zoomAt(zoom*(e.deltaY<0?1.08:.92),e.clientX,e.clientY)};
+ const jump=(r:string)=>{const region=regions.find(a=>a.id===r);if(region){const s=Math.max(minZoom,.52);camera(s,size.w/2-region.x*s,size.h/2-region.y*s);setTravel(false)}};
+ const miniMove=(e:React.PointerEvent)=>{const b=miniRef.current?.getBoundingClientRect();if(!b)return;const mx=(e.clientX-b.left)/b.width*W,my=(e.clientY-b.top)/b.height*H;setPos(clamp(zoom,size.w/2-mx*zoom,size.h/2-my*zoom))};
+ const currentRegion=selected?regions.find(r=>r.id===selected.region):null;
+ const nextProject=(dir:number)=>{if(!selected)return;const group=projects.filter(p=>p.region===selected.region),i=group.indexOf(selected);open(group[(i+dir+group.length)%group.length])};
+ return <>
+ {loading&&<div className="loading"><div className="loading-title">LOADING WORLD...</div><div className="load-track"><i/></div><small>Charting unexplored lands</small></div>}
+ <div className="viewport" ref={viewport} onPointerDown={down} onPointerMove={move} onPointerUp={()=>setIsDrag(false)} onPointerCancel={()=>setIsDrag(false)} onWheel={wheel} onClick={e=>{if(selected&&e.target===viewport.current)close()}}>
+  <div className="world" ref={mapRef} style={{transform:`translate3d(${pos.x}px,${pos.y}px,0) scale(${zoom})`}}>
+   <svg className="terrain" viewBox="0 0 4000 3000" aria-hidden="true"><rect width="4000" height="3000" fill="#e8d9b6"/><path d="M160 360 Q760 80 1440 380 T2550 280 Q3400 300 3780 680 L3900 1800 Q3400 2880 2300 2740 T360 2540 Q80 1650 160 360Z" fill="#d4c69b" stroke="#9b855e" strokeWidth="15" strokeDasharray="24 14"/>{regions.map(r=><g key={r.id}><ellipse cx={r.x} cy={r.y} rx="700" ry="520" fill={r.color} opacity=".13"/><ellipse cx={r.x} cy={r.y} rx="700" ry="520" fill="none" stroke={r.color} strokeWidth="12" strokeDasharray="18 18" opacity=".65"/></g>)}</svg>
+   {regions.map(r=><div className="region-label" key={r.id} style={{left:r.x,top:r.y,color:r.color}}><span className="region-name">{r.name}</span><span className="region-sub">{r.subtitle}</span></div>)}
+   {projects.map(p=>{const Icon=icons[p.icon]||Sparkles;return <button className={`landmark ${zoom>minZoom*1.45?'visible':''} ${zoom>.42?'title-visible':''}`} key={p.id} style={{left:p.x,top:p.y}} aria-label={`Open ${p.title} project — ${p.summary}`} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();open(p)}}><span className="landmark-icon"><Icon size={25}/></span><span className="landmark-title">{p.title}</span><span className="landmark-tip"><strong>{p.title}</strong><small>{p.summary}</small></span>{seen.includes(p.id)&&<span className="found">✦</span>}</button>})}
+  </div>
+ </div>
+ <header className="title-card"><div className="crest">DS</div><div><strong>DISHITA SETHI</strong><span>STUDENT · UX/UI & GAME UI EXPLORER</span></div></header>
+ <div className="hud-top"><span className="coord"><Compass size={15}/> FIELD NOTES · WORLD 01</span><span className="progress">✦ {seen.length} / {projects.length} DISCOVERED</span></div>
+ <aside className="hud"><div className="hud-buttons"><button title="Zoom in" onClick={()=>zoomAt(zoom*1.2)}><Plus/></button><button title="Zoom out" onClick={()=>zoomAt(zoom/1.2)}><Minus/></button><button title="Home map" onClick={home}><Home/></button><button title="List view" onClick={()=>setList(!list)} className={list?'active':''}><BookOpen/></button><button title="Fast travel" onClick={()=>setTravel(!travel)} className={travel?'active':''}><MapIcon/></button></div></aside>
+ <div className="scale-label">{Math.round(zoom/minZoom*100)}% MAP SCALE</div>
+ <div className={`minimap ${miniHidden?'mini-hidden':''}`} ref={miniRef} onPointerDown={miniMove} onPointerMove={e=>{if(e.buttons)miniMove(e)}}><div className="mini-map"/><div className="mini-view" style={{left:Math.max(0,Math.min(100,-pos.x/zoom/W*100)),top:Math.max(0,Math.min(100,-pos.y/zoom/H*100)),width:Math.min(100,size.w/zoom/W*100),height:Math.min(100,size.h/zoom/H*100)}}/></div>
+ <button className="mini-toggle" onClick={()=>setMiniHidden(!miniHidden)}><MapIcon/> {miniHidden?'Show map':'Hide map'}</button>
+ {travel&&<div className="travel-panel"><div className="panel-heading">FAST TRAVEL <button onClick={()=>setTravel(false)}><X size={16}/></button></div>{regions.map(r=><button key={r.id} onClick={()=>jump(r.id)}><span className="travel-dot" style={{background:r.color}}/>{r.name}<ArrowUpRight size={14}/></button>)}</div>}
+ <div className="hint"><Move size={15}/> DRAG TO EXPLORE <span>·</span> SCROLL TO ZOOM</div>
+ {list&&<div className="list-overlay"><div className="list-shell"><div className="list-header"><div><span className="eyebrow">FIELD INDEX</span><h2>All discoveries</h2></div><button onClick={()=>setList(false)}><X/></button></div>{regions.map(r=><section key={r.id}><h3 style={{color:r.color}}>{r.name}</h3>{projects.filter(p=>p.region===r.id).map(p=><button className="list-row" key={p.id} onClick={()=>{setList(false);open(p)}}><div><strong>{p.title}</strong><small>{p.summary}</small></div><span>{p.year}<ArrowUpRight size={15}/></span></button>)}</section>)}</div></div>}
+ {selected&&<div className="project-backdrop" onClick={close}><article className="quest-panel" role="dialog" aria-modal="true" aria-label={`${selected.title} details`} onClick={e=>e.stopPropagation()}><button className="close-quest" onClick={close} aria-label="Close project"><X/></button><div className="quest-scroll"><div className="quest-meta"><span className="quest-mark">✦ QUEST FOUND</span><span>{selected.year} · {currentRegion?.name}</span></div><div className="quest-art"><div className="art-glyph">{React.createElement(icons[selected.icon]||Sparkles,{size:62})}</div><div className="art-caption">PROJECT LANDMARK</div></div><h1>{selected.title}</h1><p className="quest-summary">{selected.summary}</p><div className="quest-tags">{selected.tools.map(t=><span key={t}>{t}</span>)}</div><div className="quest-details"><div><label>MY ROLE / CONTRIBUTION</label><strong>{selected.role}</strong></div><div><label>YEAR</label><strong>{selected.year}</strong></div></div><div className="quest-desc"><h3>THE STORY</h3><p>{selected.description}</p></div>{selected.images.length?<div className="gallery">{selected.images.map((img,i)=><img key={i} src={img} alt={`${selected.title} ${i+1}`}/>)}</div>:<div className="placeholder-gallery"><span>NO PORTFOLIO ARTWORK ATTACHED</span><small>Details are based on résumé experience. Add photos only if available.</small></div>}<a className={`case-link ${selected.link?'':'disabled'}`} href={selected.link||undefined} target="_blank" rel="noreferrer">VIEW FULL CASE STUDY <ExternalLink size={16}/></a><div className="quest-nav"><button onClick={()=>nextProject(-1)}><ChevronLeft/> PREVIOUS</button><button onClick={()=>nextProject(1)}>NEXT <ChevronRight/></button></div></div></article></div>}
+ <div className="bottom-stamp">CARTOGRAPHY OF CREATIVITY <span>—</span> MADE WITH CURIOSITY</div>
+ </>
+}
+createRoot(document.getElementById('root')!).render(<App/>);
